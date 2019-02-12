@@ -105,6 +105,7 @@ class bitfinex2 (bitfinex):
                         'auth/r/orders/{symbol}/new',
                         'auth/r/orders/{symbol}/hist',
                         'auth/r/order/{symbol}:{id}/trades',
+                        'auth/r/trades/hist',
                         'auth/r/trades/{symbol}/hist',
                         'auth/r/positions',
                         'auth/r/funding/offers/{symbol}',
@@ -116,6 +117,7 @@ class bitfinex2 (bitfinex):
                         'auth/r/funding/trades/{symbol}/hist',
                         'auth/r/info/margin/{key}',
                         'auth/r/info/funding/{key}',
+                        'auth/r/movements/hist',
                         'auth/r/movements/{currency}/hist',
                         'auth/r/stats/perf:{timeframe}/hist',
                         'auth/r/alerts',
@@ -179,7 +181,7 @@ class bitfinex2 (bitfinex):
     def get_currency_id(self, code):
         return 'f' + code
 
-    async def fetch_markets(self):
+    async def fetch_markets(self, params={}):
         markets = await self.v1GetSymbolsDetails()
         result = []
         for p in range(0, len(markets)):
@@ -328,14 +330,15 @@ class bitfinex2 (bitfinex):
         for i in range(0, len(tickers)):
             ticker = tickers[i]
             id = ticker[0]
-            market = self.markets_by_id[id]
-            symbol = market['symbol']
-            result[symbol] = self.parse_ticker(ticker, market)
+            if id in self.markets_by_id:
+                market = self.markets_by_id[id]
+                symbol = market['symbol']
+                result[symbol] = self.parse_ticker(ticker, market)
         return result
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
-        market = self.markets[symbol]
+        market = self.market(symbol)
         ticker = await self.publicGetTickerSymbol(self.extend({
             'symbol': market['id'],
         }, params))
@@ -403,7 +406,7 @@ class bitfinex2 (bitfinex):
     async def fetch_deposit_address(self, currency, params={}):
         raise NotSupported(self.id + ' fetchDepositAddress() not implemented yet.')
 
-    async def withdraw(self, currency, amount, address, tag=None, params={}):
+    async def withdraw(self, code, amount, address, tag=None, params={}):
         raise NotSupported(self.id + ' withdraw not implemented yet')
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=25, params={}):
@@ -438,7 +441,7 @@ class bitfinex2 (bitfinex):
             self.check_required_credentials()
             nonce = str(self.nonce())
             body = self.json(query)
-            auth = '/api' + '/' + request + nonce + body
+            auth = '/api/' + request + nonce + body
             signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha384)
             headers = {
                 'bfx-nonce': nonce,
